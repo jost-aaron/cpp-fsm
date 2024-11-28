@@ -1,0 +1,21 @@
+// SOME DOCUMENTATION
+StateMachineName(Init)
+
+//! Comment about this stuff
+Init {
+     Success => StateClosed,
+ },
+ StateClosed {
+     OpenBreaker => Open,
+ },
+ //! This is a comment
+ StateOpen {
+     StartClosing => HalfOpen,
+     Panic => Open,
+ },
+ // This is a comment
+ StateHalfOpen {
+     Successful => Closed,
+     Unsuccessful => Open,
+     Panic => Open,
+ },
