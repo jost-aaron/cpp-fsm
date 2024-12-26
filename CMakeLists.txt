@@ -6,8 +6,8 @@ find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
 add_custom_command(
     OUTPUT state_machine_output
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/state_machine_parser.py ${CMAKE_CURRENT_SOURCE_DIR}/state_machine_config.sm
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/state_machine_parser.py ${CMAKE_CURRENT_SOURCE_DIR}/state_machine_config.sm
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/generator.py ${CMAKE_CURRENT_SOURCE_DIR}/state_machine_config.sm
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/generator.py ${CMAKE_CURRENT_SOURCE_DIR}/state_machine_config.sm
     COMMENT "Running state machine parser"
 )
 

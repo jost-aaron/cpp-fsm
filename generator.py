@@ -1,5 +1,7 @@
 import os
 from parser import parse
+import sys
+
 
 # TODO ADD like converting state to string and stuff for debugging
 
@@ -22,8 +24,11 @@ TRANSITION_RESULT = """\
 #define SM_TRANSITION_RESULT_GUARD
 // You should check this after consume
 enum TransitionResult {
+    /// @brief Everything is ok
     Ok,
+    /// @brief Returned by Consume when the given input is not relivent to the current state. Usually implies a bug is present
     TransitionImpossable,
+    /// 
     InvalidStateBug,
 };
 #endif
@@ -35,7 +40,7 @@ def build_states_enum(sm_name,states,sm):
     output = "enum {}State {{\n".format(sm_name)
     for i in states:
         if (sm["states"][i]["doc"] != None):
-            output += "   /// {}\n".format(sm["states"][i]["doc"])
+            output += "   /// @brief {}\n".format(sm["states"][i]["doc"])
         output += "   {},\n".format(i)
     output += "};\n\n"
     return output
@@ -51,35 +56,72 @@ def build_inputs_enum(sm_name,inputs):
 # Build an state machine class
 def build_state_machine_class_src(sm):
     output = """
-// Constructor
-StateMachine::StateMachine() {{
+/// @brief Constructor
+{sm_name}StateMachine::{sm_name}StateMachine() {{
     current_state = {sm_name}State::{initial_state};
 }};
 
-// Get the current state
-{sm_name}State StateMachine::state() {{
+/// @brief Get the current state
+{sm_name}State {sm_name}StateMachine::GetState() {{
    return current_state;
 }};
 
-// Need to implement
-TransitionResult StateMachine::consume({sm_name}Input input) {{
+/// @brief TODO
+TransitionResult {sm_name}StateMachine::Consume({sm_name}Input input) {{
   {consume_impl} 
 }};
+
+/// @brief TODO
+void {sm_name}StateMachine::Run() {{
+    {run_impl}
+}};
+
+/// @brief TODO
+void {sm_name}StateMachine::OverrideState({sm_name}State state) {{
+    {run_impl}
+}};
+
+
+
     
-""".format(sm_name=sm["name"],initial_state=sm["initial_state"],consume_impl=build_state_machine_consume_src(sm))
+""".format(sm_name=sm["name"],initial_state=sm["initial_state"],consume_impl=build_state_machine_consume_src(sm),run_impl=build_state_machine_run_src(sm))
+    return output
+
+def build_state_machine_virtual_functions(all_states):
+    output = ""
+    for s in all_states:
+        output += "    /// @brief Inhariter must implement\n"
+        output += "    virtual void {}Run() const = 0;\n".format(s)
     return output
 
 # Build an state machine class
-def build_state_machine_class_header(sm_name,initial_state):
+def build_state_machine_class_header(sm_name,initial_state,all_states):
+
+    virtual_functions = build_state_machine_virtual_functions(all_states)
+
     output = """
-class StateMachine {{
+class {sm_name}StateMachine {{
 private:
     {sm_name}State current_state;
+protected:
+{state_functions}
 public:
-    {sm_name}State state();
-    int consume({sm_name}Input);
+    /// @brief TODO
+    {sm_name}State GetState();
+
+    /// @brief TODO
+    /// @param input The input to consume
+    /// @return An enum indicating if the transition was successfull or not
+    TransitionResult Consume({sm_name}Input input);
+
+    /// @brief TODO
+    void Run();
+
+    /// @brief TODO
+    void OverrideState({sm_name}State state);
+
 }};
-""".format(sm_name=sm_name,initial_state=initial_state)
+""".format(sm_name=sm_name,initial_state=initial_state,state_functions=virtual_functions)
     return output
 
 # build the consume function for state transitions
@@ -88,15 +130,15 @@ def build_state_machine_consume_src(sm):
     for s in sm["states"]:
         output += "      case {name}State::{state}:\n".format(name=sm["name"],state=s)
         output += "         switch(input) {\n"
-        for t in sm["states"][s]:
+        for t in sm["states"][s]["transitions"]:
             output += "            case {name}Input::{input}:\n".format(name=sm["name"],input=t[0])
             output += "               current_state = {name}State::{state};\n".format(name=sm["name"],state=t[1])
+            #output += "               return TransitionResult::Ok;\n"
             output += "               break;\n"
         # Add default case
         output += "            default:\n"
         output += "               return TransitionResult::Impossable;\n"
 
-        output += ""
         output += "         }\n"
         output += "         break;\n"
 
@@ -109,56 +151,87 @@ def build_state_machine_consume_src(sm):
     return output
 
 
-sm = parse("state_machine_config.sm")
+# build the consume function for state transitions
+def build_state_machine_run_src(sm):
+    output = "// Switch on the current state\n   switch (current_state) {\n"
+    for s in sm["states"]:
+        output += "      case {name}State::{state}:\n".format(name=sm["name"],state=s)
+        output += " .       {}Run();\n".format(s)
+        output += "         break;\n"
 
-sm_name = sm["name"]
-sm_initial_state = sm["initial_state"]
-sm_inputs = []
-sm_states = []
+    output += "      default:\n"
+    output += "         return TransitionResult::InvalidStateBug;\n"
+    output += "   }\n"
+    output += "   return TransitionResult::Ok;\n"
 
-print("NAME: ",sm_name)
-print("INITIAL_STATE: ",sm_initial_state)
-for s in sm["states"]:
-    print(s)
-    print("doc:",sm["states"][s]["doc"])
-    sm_states.append(s)
-    for t in sm["states"][s]:
-        sm_inputs.append(sm["states"][s]["transitions"][0][0])
-        print("\t",t)
+    
+    return output
 
-# Remove duplicates from inputs. states shouldnt contain duplicates but just in case
-sm_inputs = list(set(sm_inputs))
-sm_states = list(set(sm_states))
 
-print("inputs:",sm_states)
-print("inputs:",sm_inputs)
 
-# Eventually we will pull this from a cmake env
-if not os.path.exists("generated"):
-    os.makedirs("generated")
+if (len(sys.argv) <= 1):
+    print("Error: Not enough args")
+    exit(1)
 
-with open("generated/sm_definition.hpp","w") as f:
+for current_sm_file in sys.argv[1:]:
 
-    f.write(GENERATED_CODE_BANNER)
-    f.write(HEADER_GUARD_START)
-    f.write(TRANSITION_RESULT)
+    sm_file_name = os.path.basename(current_sm_file)
+    sm_file_path = current_sm_file.replace(sm_file_name,"")
 
-    # Generate the enum representing all states
-    f.write(build_states_enum(sm_name,sm_states,sm))
+    sm = parse(current_sm_file)
 
-    # Generate the enum representing all states
-    f.write(build_inputs_enum(sm_name,sm_inputs))
+    sm_name = sm["name"]
+    sm_initial_state = sm["initial_state"]
+    sm_inputs = []
+    sm_states = []
 
-    # Write a class that contains the state machine
-    f.write(build_state_machine_class_header(sm_name,sm_initial_state))
+    print("NAME: ",sm_name)
+    print("INITIAL_STATE: ",sm_initial_state)
+    for s in sm["states"]:
+        print(s)
+        print("doc:",sm["states"][s]["doc"])
+        sm_states.append(s)
+        for t in sm["states"][s]:
+            sm_inputs.append(sm["states"][s]["transitions"][0][0])
+            print("\t",t)
 
-    f.write(HEADER_GUARD_END)
+    # Remove duplicates from inputs. states shouldnt contain duplicates but just in case
+    sm_inputs = list(set(sm_inputs))
+    sm_states = list(set(sm_states))
 
-with open("generated/sm_definition.cpp","w") as f:
-    f.write(GENERATED_CODE_BANNER)
+    # Sort in alphabetical order so the output order is always the same
+    sm_inputs.sort()
+    sm_states.sort()
 
-    f.write(INCLUDE_HEADER)
+    print("inputs:",sm_states)
+    print("inputs:",sm_inputs)
 
-    # Write a class inplementation that contains the state machine
-    f.write(build_state_machine_class_src(sm))
+    # Eventually we will pull this from a cmake env
+    if not os.path.exists("generated"):
+        os.makedirs("generated")
+
+    with open("generated/{}.hpp".format(sm_file_name.replace(".sm","")),"w") as f:
+
+        f.write(GENERATED_CODE_BANNER)
+        f.write(HEADER_GUARD_START)
+        f.write(TRANSITION_RESULT)
+
+        # Generate the enum representing all states
+        f.write(build_states_enum(sm_name,sm_states,sm))
+
+        # Generate the enum representing all states
+        f.write(build_inputs_enum(sm_name,sm_inputs))
+
+        # Write a class that contains the state machine
+        f.write(build_state_machine_class_header(sm_name,sm_initial_state,sm_states))
+
+        f.write(HEADER_GUARD_END)
+
+    with open("generated/{}.cpp".format(sm_file_name.replace(".sm","")),"w") as f:
+        f.write(GENERATED_CODE_BANNER)
+
+        f.write(INCLUDE_HEADER)
+
+        # Write a class inplementation that contains the state machine
+        f.write(build_state_machine_class_src(sm))
 

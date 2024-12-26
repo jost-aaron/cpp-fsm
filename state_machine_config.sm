@@ -1,21 +1,37 @@
-// SOME DOCUMENTATION
-StateMachineName(Init)
+// This is a state machine for a valve system
+CircuitBreaker(Init)
 
 //! Comment about this stuff
 Init {
-     Success => StateClosed,
+     IsOpen => Open,
+     IsClosed => Closed,
  },
- StateClosed {
-     OpenBreaker => Open,
+ 
+ //! The breaker is closed
+ Closed {
+     Open => Opening,
  },
- //! This is a comment
- StateOpen {
-     StartClosing => HalfOpen,
-     Panic => Open,
+ 
+ //! The breaker is opening
+ Opening {
+     Successful => Open,
+     Unsuccessful => Faulted,
  },
- // This is a comment
- StateHalfOpen {
+ 
+ //! The breaker is open
+ Open {
+    Close => Closing,
+ },
+ 
+ //! The breaker is closing 
+ Closing {
      Successful => Closed,
-     Unsuccessful => Open,
-     Panic => Open,
+     Unsuccessful => Faulted,
  },
+
+ //! This state handles all of our errors
+ Faulted {
+    Clear => Init,
+ }
+
+ 
