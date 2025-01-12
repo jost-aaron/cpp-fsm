@@ -2,6 +2,7 @@ import vendor.lex as lex
 import vendor.yacc as yacc
 
 debug = False
+#debug = True
 
 #-------------------------------------------------- 
 #-- Ply Lexer setup ------------------------------- 

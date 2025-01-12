@@ -3,6 +3,7 @@ from parser import parse
 import sys
 
 debug = False 
+#debug = True
 
 # TODO ADD like converting state to string and stuff for debugging
 
@@ -22,7 +23,7 @@ HEADER_GUARD_END = "#endif"
 INCLUDE_HEADER = '#include "cpp-fsm/generated/sm_definition.hpp"\n'
 TRANSITION_RESULT = """\
     // You should check this after consume
-    enum class TransitionResult {
+    enum class TransitionResult : unsigned int {
         /// @brief Everything is ok
         Ok,
         /// @brief Returned by Consume when the given input is not relivent to the current state. Usually implies a bug is present
@@ -40,7 +41,7 @@ HEADER_INCLUDES = """\
 # Build an enum containing all of the supported states
 def build_states_enum(states,sm):
     output = "/// @brief This enum contains all of the valid states of the state machine\n"
-    output += "    enum class State {\n"
+    output += "    enum class State : unsigned int {\n"
     for i in states:
         if (sm["states"][i]["doc"] != None):
             output += "        /// @brief {}\n".format(sm["states"][i]["doc"])
@@ -51,7 +52,7 @@ def build_states_enum(states,sm):
 # Build an enum containing all of the supported inputs
 def build_inputs_enum(inputs):
     output = "/// @brief This contains all valid inputs for the state machine\n"
-    output += "    enum class Input {\n"
+    output += "    enum class Input : unsigned int {\n"
     for i in inputs:
         output += "        {},\n".format(i)
     output += "    };"
@@ -61,7 +62,7 @@ def build_inputs_enum(inputs):
 def build_state_machine_class_src(sm):
     output = """
 /// @brief Constructor
-{sm_name}SM::{sm_name}SM() {{
+{sm_name}SM::{sm_name}SM() noexcept {{
     current_state = {sm_name}SM::State::{initial_state};
 }};
 
@@ -125,6 +126,9 @@ public:
 
     {transition_result}
 
+    /// @brief Constructor
+    {sm_name}SM() noexcept;
+
     /// @brief Gets the current state of the state machine 
     /// @return An enum indicating the current state
     {sm_name}SM::State GetState();
@@ -174,7 +178,7 @@ def build_state_machine_consume_src(sm):
     output = "// Switch on the current state"
     output += "\n   switch (current_state) {\n"
     for s in sm["states"]:
-        output += "      case State::{state}:\n".format(name=sm["name"],state=s)
+        output += "      case {name}SM::State::{state}:\n".format(name=sm["name"],state=s)
         output += "         switch(input) {\n"
         for t in sm["states"][s]["transitions"]:
             output += "            case {name}SM::Input::{input}:\n".format(name=sm["name"],input=t[0])
@@ -237,15 +241,19 @@ for current_sm_file in sys.argv[1:]:
     if debug:
         print("NAME: ",sm_name)
         print("INITIAL_STATE: ",sm_initial_state)
+        print(sm)
     for s in sm["states"]:
         if debug:
             print(s)
             print("doc:",sm["states"][s]["doc"])
         sm_states.append(s)
         for t in sm["states"][s]:
-            sm_inputs.append(sm["states"][s]["transitions"][0][0])
+            for i in sm["states"][s]["transitions"][:]:
+                sm_inputs.append(i[0])
+            #sm_inputs.append(sm["states"][s]["transitions"][:][0])
             if debug:
                 print("\t",t)
+
 
     # Remove duplicates from inputs. states shouldnt contain duplicates but just in case
     sm_inputs = list(set(sm_inputs))

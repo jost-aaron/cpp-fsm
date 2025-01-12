@@ -1,2 +1,4 @@
 build/
 generated/
+*.pyc
+.DS_Store
