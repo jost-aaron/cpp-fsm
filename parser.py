@@ -1,6 +1,7 @@
 import vendor.lex as lex
 import vendor.yacc as yacc
 
+debug = False
 
 #-------------------------------------------------- 
 #-- Ply Lexer setup ------------------------------- 
@@ -206,17 +207,22 @@ def parse(input_file,debug=False):
     parser.parse(sm_definition_src, debug=0)
 
     # Validate state machine
-    print("NAME: {}".format(state_machine["name"]))
-    print("INITIAL_STATE: {}".format(state_machine["initial_state"]))
+    if debug:
+        print("NAME: {}".format(state_machine["name"]))
+        print("INITIAL_STATE: {}".format(state_machine["initial_state"]))
     for s in state_machine["states"]:
-        print(s)
+        if debug:
+            print(s)
         for t in state_machine["states"][s].keys():
-            print("   ",t,":")
+            if debug:
+                print("   ",t,":")
             if state_machine["states"][s][t] is not None and type(state_machine["states"][s][t]) is not str:
                 for i in state_machine["states"][s][t]:
-                    print("      ",i)
+                    if debug:
+                        print("      ",i)
             else:
-                print("      ",state_machine["states"][s][t])
+                if debug:
+                    print("      ",state_machine["states"][s][t])
             continue
 
     return state_machine
