@@ -2,6 +2,7 @@ import os
 from parser import parse
 import sys
 
+debug = True
 
 # TODO ADD like converting state to string and stuff for debugging
 
@@ -28,116 +29,163 @@ enum TransitionResult {
     Ok,
     /// @brief Returned by Consume when the given input is not relivent to the current state. Usually implies a bug is present
     TransitionImpossable,
-    /// 
+    /// @brief This shouldnt be possable if the user uses the Input enum but just in case
     InvalidStateBug,
 };
 #endif
 
 """
+HEADER_INCLUDES = """\
+// Included for static assert in state machine runner function
+#include <type_traits>
+
+"""
 
 # Build an enum containing all of the supported states
-def build_states_enum(sm_name,states,sm):
-    output = "enum {}State {{\n".format(sm_name)
+def build_states_enum(states,sm):
+    output = "/// @brief This enum contains all of the valid states of the state machine\n"
+    output += "    enum State {\n"
     for i in states:
         if (sm["states"][i]["doc"] != None):
-            output += "   /// @brief {}\n".format(sm["states"][i]["doc"])
-        output += "   {},\n".format(i)
-    output += "};\n\n"
+            output += "        /// @brief {}\n".format(sm["states"][i]["doc"])
+        output += "        {},\n".format(i)
+    output += "    };"
     return output
 
 # Build an enum containing all of the supported inputs
-def build_inputs_enum(sm_name,inputs):
-    output = "enum {}Input {{\n".format(sm_name)
+def build_inputs_enum(inputs):
+    output = "/// @brief This contains all valid inputs for the state machine\n"
+    output += "    enum Input {\n"
     for i in inputs:
-        output += "   {},\n".format(i)
-    output += "};\n\n"
+        output += "        {},\n".format(i)
+    output += "    };"
     return output
 
 # Build an state machine class
 def build_state_machine_class_src(sm):
     output = """
 /// @brief Constructor
-{sm_name}StateMachine::{sm_name}StateMachine() {{
-    current_state = {sm_name}State::{initial_state};
+{sm_name}SM::{sm_name}StateMachine() {{
+    current_state = State::{initial_state};
 }};
 
 /// @brief Get the current state
-{sm_name}State {sm_name}StateMachine::GetState() {{
+State {sm_name}SM::GetState() {{
    return current_state;
 }};
 
-/// @brief TODO
-TransitionResult {sm_name}StateMachine::Consume({sm_name}Input input) {{
+/**
+ * @brief Handles state transitions for the {sm_name} State Machine based on the given input.
+ *
+ * This function takes an input and transitions the state machine to the appropriate next state
+ * based on the current state and the input provided. It returns a TransitionResult indicating
+ * the outcome of the transition.
+ *
+ * @param input The input event that triggers a state transition.
+ * @return TransitionResult indicating the result of the state transition.
+ */
+TransitionResult {sm_name}SM::Consume(Input input) {{
   {consume_impl} 
 }};
 
-/// @brief TODO
-void {sm_name}StateMachine::Run() {{
-    {run_impl}
+/// @brief Bypass the checks performed by consume and force the state machine to the desired state
+/// @param state The desired state
+void {sm_name}SM::OverrideState(State state) {{
+   current_state = state; 
 }};
-
-/// @brief TODO
-void {sm_name}StateMachine::OverrideState({sm_name}State state) {{
-    {run_impl}
-}};
-
-
 
     
-""".format(sm_name=sm["name"],initial_state=sm["initial_state"],consume_impl=build_state_machine_consume_src(sm),run_impl=build_state_machine_run_src(sm))
+""".format(sm_name=sm["name"],
+           initial_state=sm["initial_state"],
+           consume_impl=build_state_machine_consume_src(sm),
+           run_impl=build_state_machine_run_src(sm))
     return output
 
-def build_state_machine_virtual_functions(all_states):
-    output = ""
+def build_state_machine_run_function(all_states):
+    output = "    switch (sm.GetState()) {\n"
     for s in all_states:
-        output += "    /// @brief Inhariter must implement\n"
-        output += "    virtual void {}Run() const = 0;\n".format(s)
+        #output += "    /// @brief Inhariter must implement\n"
+        output += "        case T::State::{}:\n".format(s)
+        output += "            sm.{}Run();\n".format(s)
+        output += "            break;\n"
+    output += "        // This shouldn't be possable but just in case someone tries\n"
+    output += "        //   to do a funky cast to this enum...\n"
+    output += "        default:\n"
+    output += "            sm.FaultRun();\n"
+    output += "            break;\n"
+    output += "    }"
     return output
 
 # Build an state machine class
-def build_state_machine_class_header(sm_name,initial_state,all_states):
+def build_state_machine_class_header(sm_name,initial_state,all_states,sm_inputs,sm):
 
-    virtual_functions = build_state_machine_virtual_functions(all_states)
 
     output = """
-class {sm_name}StateMachine {{
-private:
-    {sm_name}State current_state;
-protected:
-{state_functions}
+class {sm_name}SM {{
 public:
-    /// @brief TODO
-    {sm_name}State GetState();
+
+    {states_enum}
+
+    {inputs_enum}
+
+    /// @brief Gets the current state of the state machine 
+    /// @return An enum indicating the current state
+    State GetState();
 
     /// @brief TODO
     /// @param input The input to consume
     /// @return An enum indicating if the transition was successfull or not
-    TransitionResult Consume({sm_name}Input input);
+    TransitionResult Consume(Input input);
 
-    /// @brief TODO
-    void Run();
+    /// @brief Bypass transitions of the state machine
+    void OverrideState(State state);
 
-    /// @brief TODO
-    void OverrideState({sm_name}State state);
+private:
+    State current_state;
 
 }};
-""".format(sm_name=sm_name,initial_state=initial_state,state_functions=virtual_functions)
+
+
+/// @brief This function is used to run one iteration of the state machine. 
+///   Utilizing this function provides compile time guarantees 
+///   that all valid states are defined in the child class
+/// @tparam T Child class of {sm_name}SM
+/// @param sm The state machine to run
+template <typename T>
+void {sm_name}SM_Run(T& sm) {{
+
+    // Make sure T actually inhereted {sm_name}SM
+    static_assert(
+        std::is_base_of<{sm_name}SM, T>::value, 
+        "T must inherit from {sm_name}SM"
+    );
+
+    // Switch on all valid states
+{state_functions}
+
+}}
+""".format(sm_name=sm_name,
+           initial_state=initial_state,
+           state_functions=build_state_machine_run_function(all_states),
+           states_enum= build_states_enum(all_states,sm),
+           inputs_enum= build_inputs_enum(sm_inputs))
     return output
 
 # build the consume function for state transitions
 def build_state_machine_consume_src(sm):
-    output = "// Switch on the current state\n   switch (current_state) {\n"
+    output = "// Switch on the current state"
+    output += "\n   switch (current_state) {\n"
     for s in sm["states"]:
-        output += "      case {name}State::{state}:\n".format(name=sm["name"],state=s)
+        output += "      case State::{state}:\n".format(name=sm["name"],state=s)
         output += "         switch(input) {\n"
         for t in sm["states"][s]["transitions"]:
-            output += "            case {name}Input::{input}:\n".format(name=sm["name"],input=t[0])
-            output += "               current_state = {name}State::{state};\n".format(name=sm["name"],state=t[1])
+            output += "            case Input::{input}:\n".format(name=sm["name"],input=t[0])
+            output += "               current_state = State::{state};\n".format(name=sm["name"],state=t[1])
             #output += "               return TransitionResult::Ok;\n"
             output += "               break;\n"
         # Add default case
         output += "            default:\n"
-        output += "               return TransitionResult::Impossable;\n"
+        output += "               return TransitionResult::TransitionImpossable;\n"
 
         output += "         }\n"
         output += "         break;\n"
@@ -155,7 +203,7 @@ def build_state_machine_consume_src(sm):
 def build_state_machine_run_src(sm):
     output = "// Switch on the current state\n   switch (current_state) {\n"
     for s in sm["states"]:
-        output += "      case {name}State::{state}:\n".format(name=sm["name"],state=s)
+        output += "      case State::{state}:\n".format(name=sm["name"],state=s)
         output += " .       {}Run();\n".format(s)
         output += "         break;\n"
 
@@ -175,11 +223,14 @@ if (len(sys.argv) <= 1):
 
 for current_sm_file in sys.argv[1:]:
 
+    # Get the current file and its path
     sm_file_name = os.path.basename(current_sm_file)
     sm_file_path = current_sm_file.replace(sm_file_name,"")
 
+    # Parse the state machine definition
     sm = parse(current_sm_file)
 
+    # Get information from parsed data
     sm_name = sm["name"]
     sm_initial_state = sm["initial_state"]
     sm_inputs = []
@@ -214,16 +265,11 @@ for current_sm_file in sys.argv[1:]:
 
         f.write(GENERATED_CODE_BANNER)
         f.write(HEADER_GUARD_START)
+        f.write(HEADER_INCLUDES)
         f.write(TRANSITION_RESULT)
 
-        # Generate the enum representing all states
-        f.write(build_states_enum(sm_name,sm_states,sm))
-
-        # Generate the enum representing all states
-        f.write(build_inputs_enum(sm_name,sm_inputs))
-
         # Write a class that contains the state machine
-        f.write(build_state_machine_class_header(sm_name,sm_initial_state,sm_states))
+        f.write(build_state_machine_class_header(sm_name,sm_initial_state,sm_states,sm_inputs,sm))
 
         f.write(HEADER_GUARD_END)
 
