@@ -1,5 +1,11 @@
-import vendor.lex as lex
-import vendor.yacc as yacc
+import sys
+import os
+
+script_path = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(script_path)
+import lex 
+import yacc
+
 
 debug = False
 #debug = True

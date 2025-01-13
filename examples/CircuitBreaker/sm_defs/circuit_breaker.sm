@@ -1,0 +1,43 @@
+// This is a state machine for a valve system
+CircuitBreaker(Init)
+
+//! Comment about this stuff
+Init {
+     IsOpen => Open,
+     IsClosed => Closed,
+     Panic => Fault,
+ },
+ 
+ //! The breaker is closed
+ Closed {
+     Open => Opening,
+     Panic => Fault,
+ },
+ 
+ //! The breaker is opening
+ Opening {
+     Successful => Open,
+     Unsuccessful => Fault,
+     Panic => Fault,
+ },
+ 
+ //! The breaker is open
+ Open {
+    Close => Closing,
+     Panic => Fault,
+ },
+ 
+ //! The breaker is closing 
+ Closing {
+     Successful => Closed,
+     Unsuccessful => Fault,
+     Panic => Fault,
+ },
+
+ //! This state handles all of our errors
+ Fault {
+    Clear => Init,
+    Panic => Fault,
+ }
+
+ 
