@@ -15,11 +15,10 @@ GENERATED_CODE_BANNER = """\
 """
 
 HEADER_GUARD_START = """\
-#ifndef SM_DEFINITION_HEADER_GUARD 
-#define SM_DEFINITION_HEADER_GUARD
+#pragma once
 
 """
-HEADER_GUARD_END = "#endif"
+HEADER_GUARD_END = ""
 INCLUDE_HEADER = '#include "cpp-fsm/generated/sm_definition.hpp"\n'
 TRANSITION_RESULT = """\
     // You should check this after consume
