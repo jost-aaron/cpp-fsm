@@ -1,5 +1,5 @@
 import os
-from parser import parse
+from parser import parse,reset
 import sys
 
 debug = False 
@@ -230,6 +230,7 @@ for current_sm_file in sys.argv[1:]:
     sm_file_path = current_sm_file.replace(sm_file_name,"")
 
     # Parse the state machine definition
+    sm = []
     sm = parse(current_sm_file)
 
     # Get information from parsed data
@@ -297,4 +298,6 @@ for current_sm_file in sys.argv[1:]:
 
         # Write a class inplementation that contains the state machine
         f.write(build_state_machine_class_src(sm))
+
+    reset()
 

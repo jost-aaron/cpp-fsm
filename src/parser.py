@@ -233,3 +233,12 @@ def parse(input_file,debug=False):
             continue
 
     return state_machine
+
+def reset():
+    global state_machine
+    # We will save all data here
+    state_machine = {
+        'name': None,
+        'initial_state': None,
+        'states': {}
+    }
