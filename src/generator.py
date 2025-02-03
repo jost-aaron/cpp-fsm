@@ -2,8 +2,8 @@ import os
 from parser import parse,reset
 import sys
 
-debug = False 
-#debug = True
+#debug = False 
+debug = True
 
 # TODO ADD like converting state to string and stuff for debugging
 

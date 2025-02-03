@@ -2,7 +2,7 @@
 CircuitBreaker(Init)
 
 //! Comment about this stuff
-Init {
+Init(1999) {
      IsOpen => Open,
      IsClosed => Closed,
      Panic => Fault,

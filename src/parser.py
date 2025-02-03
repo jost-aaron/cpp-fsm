@@ -7,8 +7,8 @@ import lex
 import yacc
 
 
-debug = False
-#debug = True
+#debug = False
+debug = True
 
 #-------------------------------------------------- 
 #-- Ply Lexer setup ------------------------------- 
@@ -18,6 +18,7 @@ tokens = (
     'STATE_MACHINE_NAME',
     'STARTING_STATE',
     'STATE_DEFINITION_NAME',
+    'STATE_DEFINITION_TIMEOUT',
     'STATE_DEFINITION_BEGIN',
     'STATE_TRANSITION_INPUT',
     'STATE_TRANSITION_ARROW',
@@ -56,6 +57,10 @@ def t_INITIAL_STARTING_STATE(t):
 
 def t_states_STATE_DEFINITION_NAME(t):
     r'[A-Za-z_][A-Za-z0-9_]*'
+    return t
+
+def t_states_STATE_DEFINITION_TIMEOUT(t):
+    r'\([0-9]*\)'
     return t
 
 def t_states_STATE_DEFINITION_BEGIN(t):
@@ -144,22 +149,37 @@ def p_all_states(p):
 # This will parse a single state. We will handle the case where it is either doc commented or not
 def p_state(p):
     '''state : STATE_DEFINITION_NAME STATE_DEFINITION_BEGIN all_transitions STATE_DEFINITION_END 
-                    | DOC_COMMENT STATE_DEFINITION_NAME STATE_DEFINITION_BEGIN all_transitions STATE_DEFINITION_END'''
-    # Handle DOC comment
-    if (len(p) == 6):
+                    | DOC_COMMENT STATE_DEFINITION_NAME STATE_DEFINITION_BEGIN all_transitions STATE_DEFINITION_END
+                    | STATE_DEFINITION_NAME STATE_DEFINITION_TIMEOUT STATE_DEFINITION_BEGIN all_transitions STATE_DEFINITION_END
+                    | DOC_COMMENT STATE_DEFINITION_NAME STATE_DEFINITION_TIMEOUT STATE_DEFINITION_BEGIN all_transitions STATE_DEFINITION_END'''
+
+    state_doc = None
+    state_name = None
+    state_timeout = None
+    transitions = None
+
+
+    # Check for doc comment and add if it exists
+    if (p[1].startswith("//!")):    
         state_doc = p[1]
         state_name = p[2]
-        transitions = p[4]
-        state_machine['states'][state_name] = dict()
-        state_machine['states'][state_name]['transitions'] = transitions
-        state_machine['states'][state_name]['doc'] = state_doc[3:].strip()
-    # Handle undocumented case
-    elif (len(p) == 5):
+    else:
         state_name = p[1]
-        transitions = p[3]
-        state_machine['states'][state_name] = dict()
-        state_machine['states'][state_name]['transitions'] = transitions
-        state_machine['states'][state_name]['doc'] = None
+        
+    # Handle timeout
+    if (state_doc is None and p[2].startswith("(")):
+        state_timeout = int(p[2][1:-1])
+    elif (p[3].startswith("(")):
+        state_timeout = int(p[3][1:-1])
+
+    # Calculate the offset where the transitions start
+    transitions_offset = next(i for i, x in enumerate(p) if x == '{') + 1
+    transitions = p[transitions_offset]
+
+    state_machine['states'][state_name] = dict()
+    state_machine['states'][state_name]['doc'] = state_doc
+    state_machine['states'][state_name]['timeout'] = str(state_timeout)
+    state_machine['states'][state_name]['transitions'] = transitions
 
 # This defines that a state can have one or multiple transitions
 def p_all_transitions(p):
