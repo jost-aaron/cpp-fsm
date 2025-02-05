@@ -63,12 +63,19 @@ def build_state_machine_class_src(sm):
 /// @brief Constructor
 {sm_name}SM::{sm_name}SM() noexcept {{
     current_state = {sm_name}SM::State::{initial_state};
+    previous_state = {sm_name}SM::State::{initial_state};
 }};
 
 /// @brief Get the current state
 {sm_name}SM::State {sm_name}SM::GetState() {{
    return current_state;
 }};
+
+/// @brief Get the previous state
+{sm_name}SM::State {sm_name}SM::GetPreviousState() {{
+   return previous_state;
+}};
+
 
 /**
  * @brief Handles state transitions for the {sm_name} State Machine based on the given input.
@@ -132,6 +139,10 @@ public:
     /// @return An enum indicating the current state
     {sm_name}SM::State GetState();
 
+    /// @brief Gets the previous state of the state machine 
+    /// @return An enum indicating the previous state
+    {sm_name}SM::State GetPreviousState();
+
     /// @brief TODO
     /// @param input The input to consume
     /// @return An enum indicating if the transition was successfull or not
@@ -142,6 +153,7 @@ public:
 
 private:
     State current_state;
+    State previous_state;
 
 }};
 
@@ -181,8 +193,8 @@ def build_state_machine_consume_src(sm):
         output += "         switch(input) {\n"
         for t in sm["states"][s]["transitions"]:
             output += "            case {name}SM::Input::{input}:\n".format(name=sm["name"],input=t[0])
+            output += "               previous_state = GetState();\n".format(name=sm["name"],state=t[1])
             output += "               current_state = {name}SM::State::{state};\n".format(name=sm["name"],state=t[1])
-            #output += "               return TransitionResult::Ok;\n"
             output += "               break;\n"
         # Add default case
         output += "            default:\n"
