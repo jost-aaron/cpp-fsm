@@ -34,6 +34,7 @@ TRANSITION_RESULT = """\
 HEADER_INCLUDES = """\
 // Included for static assert in state machine runner function
 #include <type_traits>
+#include <string>
 
 """
 
@@ -93,15 +94,21 @@ def build_state_machine_class_src(sm):
 
 /// @brief Bypass the checks performed by consume and force the state machine to the desired state
 /// @param state The desired state
-void {sm_name}SM::OverrideState({sm_name}SM::State state) {{
+void {sm_name}SM::OverrideState(State state) {{
    current_state = state; 
 }};
 
+const char* {sm_name}SM::ResolveStateToString(State state) {{
+    {state_to_string_impl}
+}};
     
 """.format(sm_name=sm["name"],
            initial_state=sm["initial_state"],
            consume_impl=build_state_machine_consume_src(sm),
-           run_impl=build_state_machine_run_src(sm))
+           run_impl=build_state_machine_run_src(sm),
+           state_to_string_impl=build_state_machine_state_resolve(sm)
+
+           )
     return output
 
 def build_state_machine_run_function(all_states):
@@ -123,6 +130,9 @@ def build_state_machine_run_function(all_states):
 def build_state_machine_class_header(sm_name,initial_state,all_states,sm_inputs,sm):
 
     output = """
+
+#define MAX_NAME_SIZE 40
+
 class {sm_name}SM {{
 public:
 
@@ -150,6 +160,10 @@ public:
 
     /// @brief Bypass transitions of the state machine
     void OverrideState({sm_name}SM::State state);
+
+    /// @brief Convert a state enum into a string
+    const char* ResolveStateToString({sm_name}SM::State);
+
 
 private:
     State current_state;
@@ -217,7 +231,7 @@ def build_state_machine_run_src(sm):
     output = "// Switch on the current state\n   switch (current_state) {\n"
     for s in sm["states"]:
         output += "      case State::{state}:\n".format(name=sm["name"],state=s)
-        output += " .       {}Run();\n".format(s)
+        output += "         {}Run();\n".format(s)
         output += "         break;\n"
 
     output += "      default:\n"
@@ -227,6 +241,19 @@ def build_state_machine_run_src(sm):
 
     
     return output
+
+# build the consume function for state transitions
+def build_state_machine_state_resolve(sm):
+    output = "// Switch on input state and return string of state\n   switch (state) {\n"
+    for s in sm["states"]:
+        output += "      case State::{state}:\n".format(name=sm["name"],state=s)
+        output += "         return \"{}\";\n".format(s)
+    output += "      default:\n"
+    output += "         return \"Unknown/InvalidStateBug\";\n"
+    output += "   }\n"
+    
+    return output
+
 
 
 
